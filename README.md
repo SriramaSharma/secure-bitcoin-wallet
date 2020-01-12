@@ -1,20 +1,19 @@
-# Secure Bitcoin Wallet on LinuxONE (Monolithic Multistage)
+# Secure Bitcoin Wallet on LinuxONE
 
 This branch creates a monolithic container with a multistage Dockerfile to package a Web Frontend and an Electrum Bitcoin Client in a single container, using [Electrum 3.3.6](https://github.com/spesmilo/electrum/tree/3.3.6).
 
 ## Electrum Bitcoin Client with Web Frontend
 
-Secure Bitcoin Wallet is a Dockernized version of [Electrum Bitcoin Client](/electrum) 
-with a [Web frontend](/laravel-electrum) to run on [IBM LinuxONE](https://developer.ibm.com/linuxone/), 
+Secure Bitcoin Wallet is a Dockernized version of Electrum Bitcoin Client 
+with a Web frontend to run on [IBM LinuxONE](https://developer.ibm.com/linuxone/), 
 as shown in the following block diagram.
-The [Electrum Bitcoin Client](/electrum), a modified version of [Electrum](https://github.com/spesmilo/electrum), runs as a JSON RPC server to maintain 
+The Electrum Bitcoin Client, a modified version of [Electrum](https://github.com/spesmilo/electrum), runs as a JSON RPC server to maintain 
 a bitcoin wallet by interacting with the bitcoin network.
 It can optionally encrypt/decrypt a wallet file using an [EP11 crypto server](https://www.ibm.com/support/knowledgecenter/en/linuxonibm/com.ibm.linux.z.lxce/lxce_stack.html) (zHSM) to protect the encryption key. 
-The [Electrum frontend](/laravel-electrum), a modified version of [Electrum for Laravel 5.4+](https://github.com/AraneaDev/laravel-electrum),
-runs as a Web frontend to interact with bitcoin users via a Web browser.
-It runs on [Laravel](https://laravel.com/), an emerging application framework written in PHP taking advantage of NodeJS for client-side rendering.
-In this monolithic version, these two componets are configured to run in a single Docker container on x86 or in a single Hyper Protect Virtual Server on a 
-LinuxONE Secure Service Container (SSC).
+The Web frontend, a modified version of [Electrum for Laravel 5.4+](https://github.com/AraneaDev/laravel-electrum),
+runs as a frontend to interact with a Web browser.
+It runs on [Laravel](https://laravel.com/), an application framework written in PHP taking advantage of NodeJS for client-side rendering.
+These two componets are configured to run in a single Docker container on x86 or in a single Hyper Protect Virtual Server on a LinuxONE Secure Service Container (SSC).
 
 ![A blockdiagram](https://github.com/IBM/secure-bitcoin-wallet/blob/images/images/blockdiagram-monolithic.png)*Block Diagram*
 
@@ -26,12 +25,19 @@ Here is a sample screenshot of the wallet to send bitcoins to a recipient.
 
 ### How to build on a regular Linux or Mac
 
-Just clone a monolithic-multistage branch from this repo and build a container out of it.
+Just clone a master branch from this repo and build a container out of it.
 
 ```
 $ git clone https://github.com/IBM/secure-bitcoin-wallet.git
 $ cd secure-bitcoin-wallet
 $ docker build -t secure-bitcoin-wallet .
+```
+
+In default, this builds a grpc python library from source code, which is used to talk to
+an EP11 crypto server (aka grep11 server) though grpc. To skip building the library,
+
+```
+$ docker build --build-arg GRPC_BUILD="False" -t secure-bitcoin-wallet .
 ```
 
 ### How to run on a regular Linux or Mac

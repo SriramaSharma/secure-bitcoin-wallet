@@ -8,29 +8,30 @@ COPY --from=node /usr/local /usr/local
 WORKDIR /git
 ENV GRPC_PYTHON_BUILD_SYSTEM_OPENSSL 1
 
-RUN apt-get update \
+ARG GRPC_BULD="True"
+RUN apt-get update && \
 # install python and other additional packages
-        && apt-get install -y --no-install-recommends git ca-certificates curl python3-pip python3-dev build-essential python3-setuptools python3-wheel protobuf-compiler libssl-dev libffi-dev autoconf automake libtool vim \
+    apt-get install -y --no-install-recommends git ca-certificates curl python3-pip python3-dev build-essential python3-setuptools python3-wheel protobuf-compiler libssl-dev libffi-dev autoconf automake libtool vim && \
 # building the grpc c core library from source
-        && git clone -b v1.20.x https://github.com/grpc/grpc.git \
-        && cd /git/grpc \
-        && git submodule update --init \
-        && make install \
+    if [ "$GRPC_BUILD" = "True" ]; then \
+       git clone -b v1.20.x https://github.com/grpc/grpc.git; \
+       cd /git/grpc; \
+       git submodule update --init; \
+       make install; \
 # installing Cython to build packages for python
-        && pip3 install Cython \
+       pip3 install Cython; \
 # installing grpcio package for python
-        && cd /git/grpc \
-        && pip3 install -rrequirements.txt \
-        && GRPC_PYTHON_BUILD_WITH_CYTHON=1 pip3 install . \
+       cd /git/grpc; \
+       pip3 install -rrequirements.txt; \
+       GRPC_PYTHON_BUILD_WITH_CYTHON=1 pip3 install .; \
 # installing grpcio-tools package for python
-        && cd /git/grpc/tools/distrib/python/grpcio_tools \
-        && python3 ../make_grpcio_tools.py \
-        && GRPC_PYTHON_BUILD_WITH_CYTHON=1 pip3 install . \
+       cd /git/grpc/tools/distrib/python/grpcio_tools; \
+       python3 ../make_grpcio_tools.py; \
+       GRPC_PYTHON_BUILD_WITH_CYTHON=1 pip3 install .; \
 # clean up
-        && apt-get -y autoremove && apt-get clean \
-        && rm -rf /git/grpc
-#       && rm -rf /var/lib/apt/lists/* /var/tmp/* /git/grpc
-
+       apt-get -y autoremove && apt-get clean; \
+       rm -rf /git/grpc; \
+    fi
 
 ###################################################################################
 
@@ -48,23 +49,25 @@ ENV ELECTRUM_PASSWORD passw0rd
 
 WORKDIR /git
 ADD pyep11 /git/pyep11
-RUN  git clone https://github.com/tnakaike/electrum.git && \
+RUN git clone https://github.com/tnakaike/electrum.git && \
     cd /git/electrum && \
     git checkout ${ELECTRUM_TAG} && \
     pip3 uninstall -y enum34 && \
     pip3 install . && \
     protoc --proto_path=electrum --python_out=electrum electrum/paymentrequest.proto && \
     pip3 install grpclib && \
-    cd /git/pyep11 && \
-    python3 -m grpc_tools.protoc common/protos/*.proto generated/protos/*.proto \
-        vendor/github.com/gogo/protobuf/gogoproto/*.proto \
-        vendor/github.com/gogo/googleapis/google/api/*.proto \
-        -Icommon/protos -Igenerated/protos \
-	-Ivendor/github.com/gogo/protobuf/gogoproto \
-	-Ivendor/github.com/gogo/googleapis \
-        --python_out=/git/pyep11/generated/python_grpc --grpc_python_out=/git/pyep11/generated/python_grpc \
-	&& mv /git/pyep11/generated/python_grpc/* /git/electrum \
-	&& mv /git/pyep11/ep11.py /git/electrum && \
+    if [ "$GRPC_BUILD" = "True" ]; then \
+       cd /git/pyep11; \
+       python3 -m grpc_tools.protoc common/protos/*.proto generated/protos/*.proto \
+          vendor/github.com/gogo/protobuf/gogoproto/*.proto \
+          vendor/github.com/gogo/googleapis/google/api/*.proto \
+          -Icommon/protos -Igenerated/protos \
+	  -Ivendor/github.com/gogo/protobuf/gogoproto \
+	  -Ivendor/github.com/gogo/googleapis \
+          --python_out=/git/pyep11/generated/python_grpc --grpc_python_out=/git/pyep11/generated/python_grpc; \
+       mv /git/pyep11/generated/python_grpc/* /git/electrum; \
+       mv /git/pyep11/ep11.py /git/electrum; \
+    fi && \
     mkdir -p /data && chown ${ELECTRUM_USER} /data
 
 # Run Electrum as non privileged user
@@ -116,8 +119,7 @@ ADD laravel-electrum/composer.json .
 ADD laravel-electrum/env.sh .
 
 ARG LARAVEL_ELECTRUM_BRANCH="local-c"
-RUN sed "s|dev-local|dev-${LARAVEL_ELECTRUM_BRANCH}|" < composer.json > composer.json.new && \
-    mv composer.json.new composer.json && \
+RUN sed --in-place "s|dev-local|dev-${LARAVEL_ELECTRUM_BRANCH}|" composer.json && \
     composer -vv install && \
     npm install && \
     mv .env.example .env && \
@@ -125,22 +127,16 @@ RUN sed "s|dev-local|dev-${LARAVEL_ELECTRUM_BRANCH}|" < composer.json > composer
     ./env.sh && \
     php artisan make:auth && \
     php artisan make:migration create_user && \
-    sed "s|App\\\Providers\\\RouteServiceProvider::class,|App\\\Providers\\\RouteServiceProvider::class,\n        AraneaDev\\\Electrum\\\ElectrumServiceProvider::class,|" < config/app.php > config/app.php2 && mv config/app.php2 config/app.php && \
-    sed "s|Vue.component('example', require('./components/Example.vue'));|Vue.component('electrum-wallet', require('$APP_ROOT/vendor/araneadev/laravel-electrum/src/resources/assets/js/Electrum.vue'));|" < $APP_ROOT/resources/assets/js/app.js > $APP_ROOT/resources/assets/js/app.js.new && mv   $APP_ROOT/resources/assets/js/app.js.new $APP_ROOT/resources/assets/js/app.js && \
-    sed "s/right/left/"  < resources/views/layouts/app.blade.php > resources/views/layouts/app.blade.php.new && \
-    mv resources/views/layouts/app.blade.php.new resources/views/layouts/app.blade.php && \
-    sed "s/\"nav navbar-nav\"/\"nav navbar-nav navbar-center\"/"  < resources/views/layouts/app.blade.php > resources/views/layouts/app.blade.php.new && \
-    mv resources/views/layouts/app.blade.php.new resources/views/layouts/app.blade.php && \
+    sed --in-place "s|App\\\Providers\\\RouteServiceProvider::class,|App\\\Providers\\\RouteServiceProvider::class,\n        AraneaDev\\\Electrum\\\ElectrumServiceProvider::class,|" config/app.php && \
+    sed --in-place "s|Vue.component('example', require('./components/Example.vue'));|Vue.component('electrum-wallet', require('$APP_ROOT/vendor/araneadev/laravel-electrum/src/resources/assets/js/Electrum.vue'));|" $APP_ROOT/resources/assets/js/app.js && \
+    sed --in-place "s/right/left/" resources/views/layouts/app.blade.php && \
+    sed --in-place "s/\"nav navbar-nav\"/\"nav navbar-nav navbar-center\"/" resources/views/layouts/app.blade.php && \
 # Change the redict root after login from home to electrum
-    sed "s|/home|/electrum|" < app/Http/Controllers/Auth/LoginController.php > app/Http/Controllers/Auth/LoginController.php.new && \
-    mv app/Http/Controllers/Auth/LoginController.php.new app/Http/Controllers/Auth/LoginController.php && \
-    sed "s|/home|/electrum|" < app/Http/Controllers/Auth/RegisterController.php > app/Http/Controllers/Auth/RegisterController.php.new && \
-    mv app/Http/Controllers/Auth/RegisterController.php.new app/Http/Controllers/Auth/RegisterController.php && \
-    sed "s|/home|/electrum|" < app/Http/Controllers/Auth/ResetPasswordController.php > app/Http/Controllers/Auth/ResetPasswordController.php.new && \
-    mv app/Http/Controllers/Auth/ResetPasswordController.php.new app/Http/Controllers/Auth/ResetPasswordController.php && \
+    sed --in-place "s|/home|/electrum|" app/Http/Controllers/Auth/LoginController.php && \
+    sed --in-place "s|/home|/electrum|" app/Http/Controllers/Auth/RegisterController.php && \
+    sed --in-place "s|/home|/electrum|" app/Http/Controllers/Auth/ResetPasswordController.php && \
 # Use the container hostname as the session key
-    sed "s|'laravel_session',|env('HOSTNAME', 'laravel_session'),|" < config/session.php > config/session.php.new && \
-    mv config/session.php.new config/session.php && \
+    sed --in-place "s|'laravel_session',|env('HOSTNAME', 'laravel_session'),|" config/session.php && \
     npm install ajv && \
     npm install clipboard --save-dev && \
     npm install moment --save-dev && \
